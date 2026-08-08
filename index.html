@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Apometre">
+<meta name="theme-color" content="#1F4E79">
+<title>Apometre</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --primary: #1F4E79;
+    --primary-dark: #163756;
+    --accent: #0078D4;
+    --bg: #F5F7FA;
+    --card: #FFFFFF;
+    --danger: #D32F2F;
+    --success: #2E7D32;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overscroll-behavior-y: contain;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: #222;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Header */
+  header {
+    background: var(--primary);
+    color: white;
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .icon-btn {
+    background: none; border: none; color: white; font-size: 22px;
+    padding: 4px 8px; cursor: pointer;
+  }
+  .stats-bar {
+    background: var(--primary-dark);
+    color: #cfe0f0;
+    font-size: 12.5px;
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Empty state */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 60vh; text-align: center; padding: 0 30px; color: #888;
+  }
+  .empty-state .emoji { font-size: 56px; margin-bottom: 12px; }
+  .empty-state h2 { font-size: 17px; color: #555; margin-bottom: 6px; }
+  .empty-state p { font-size: 14px; }
+
+  /* List */
+  #lista { padding: 10px; padding-bottom: 100px; }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    position: relative;
+  }
+  .card img {
+    width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+    background: #eee;
+  }
+  .card .no-photo {
+    width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0;
+    background: #eee; display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .card .info { flex: 1; min-width: 0; }
+  .card .denumire { font-weight: 600; font-size: 14.5px; color: #333; }
+  .card .index { font-weight: 700; font-size: 19px; color: var(--accent); margin-top: 2px; }
+  .card .data { font-size: 11px; color: #999; margin-top: 4px; }
+  .card .del-btn {
+    background: #ffebee; color: var(--danger); border: none; border-radius: 20px;
+    width: 32px; height: 32px; font-size: 15px; flex-shrink: 0; cursor: pointer;
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 16px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    cursor: pointer;
+    z-index: 20;
+  }
+
+  /* Modal / sheet */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: flex-end; z-index: 100;
+  }
+  .overlay.active { display: flex; }
+  .sheet {
+    background: white;
+    width: 100%;
+    border-radius: 18px 18px 0 0;
+    padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .sheet-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+  }
+  .sheet-header h2 { font-size: 17px; }
+  .sheet-header button {
+    background: none; border: none; font-size: 15px; color: var(--accent); cursor: pointer;
+  }
+
+  .photo-zone {
+    width: 100%; height: 200px; border-radius: 12px; background: #f0f0f0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--accent); margin-bottom: 12px; overflow: hidden; position: relative;
+    border: 2px dashed #cfd8e3;
+  }
+  .photo-zone img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-zone .placeholder { text-align: center; }
+  .photo-zone .placeholder .icon { font-size: 40px; display: block; margin-bottom: 6px; }
+
+  label.field-label { display: block; font-size: 12.5px; color: #777; margin-bottom: 5px; margin-top: 12px; }
+  input[type="text"], input[type="number"] {
+    width: 100%; padding: 13px; border-radius: 10px; border: 1px solid #e0e0e0;
+    background: #f8f9fb; font-size: 16px;
+  }
+  input#indexInput {
+    font-size: 26px; font-weight: 700; text-align: center; font-family: 'SF Mono', monospace;
+    letter-spacing: 1px;
+  }
+  .btn-save {
+    width: 100%; padding: 15px; border-radius: 12px; border: none;
+    background: var(--accent); color: white; font-size: 16px; font-weight: 600;
+    margin-top: 20px; cursor: pointer;
+  }
+  .btn-save:disabled { background: #bbb; }
+  .btn-refoto {
+    width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--accent);
+    background: white; color: var(--accent); font-size: 14px; margin-top: 8px; cursor: pointer;
+  }
+
+  #cameraInput { display: none; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: #222; color: white; padding: 10px 20px; border-radius: 20px;
+    font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 200; pointer-events: none;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* Install banner */
+  #installBanner {
+    display: none;
+    background: #FFF3CD; color: #856404; font-size: 12.5px;
+    padding: 10px 16px; text-align: center;
+  }
+  #installBanner.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💧 Apometre</h1>
+  <div>
+    <button class="icon-btn" onclick="exportaCSV()" title="Export CSV">⬆️</button>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <span id="totalCount">Total: 0 înregistrări</span>
+</div>
+
+<div id="installBanner">
+  📲 Adaugă pe ecranul principal: apasă butonul <b>Share</b> din Safari → <b>„Add to Home Screen"</b>
+</div>
+
+<div id="emptyState" class="empty-state">
+  <div class="emoji">💧</div>
+  <h2>Niciun apometru înregistrat</h2>
+  <p>Apasă butonul de jos pentru a adăuga o poză și un index</p>
+</div>
+
+<div id="lista"></div>
+
+<button class="fab" onclick="deschideAdaugare()">📷 Adaugă</button>
+
+<!-- Sheet adăugare / editare -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button onclick="inchideSheet()">Anulează</button>
+      <h2 id="sheetTitle">Adaugă citire</h2>
+      <span style="width:50px"></span>
+    </div>
+
+    <div class="photo-zone" id="photoZone" onclick="document.getElementById('cameraInput').click()">
+      <div class="placeholder" id="photoPlaceholder">
+        <span class="icon">📷</span>
+        Fotografiază apometrul
+      </div>
+      <img id="photoPreview" style="display:none">
+    </div>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+    <button class="btn-refoto" id="refotoBtn" style="display:none" onclick="document.getElementById('cameraInput').click()">📸 Refă poza</button>
+
+    <label class="field-label">Denumire (opțional)</label>
+    <input type="text" id="denumireInput" placeholder="ex: Ap. 12, Bucătărie...">
+
+    <label class="field-label">Index apometru (mc)</label>
+    <input type="text" inputmode="decimal" id="indexInput" placeholder="0.000">
+
+    <button class="btn-save" id="saveBtn" onclick="salveazaInregistrare()" disabled>✅ SALVEAZĂ</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// STORAGE (IndexedDB pentru poze + metadate)
+// ─────────────────────────────────────────────────────────
+const DB_NAME = 'apometre_db';
+const STORE_NAME = 'inregistrari';
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains(STORE_NAME)) {
+        const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        store.createIndex('dataOra', 'dataOra');
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function addRecord(record) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function deleteRecord(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function getAllRecords() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).getAll();
+    req.onsuccess = () => resolve(req.result.sort((a,b) => b.dataOra - a.dataOra));
+    req.onerror = (e) => reject(e);
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+let inregistrari = [];
+let pozaCurentaBase64 = null;
+
+// ─────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await openDB();
+  await incarcaLista();
+  verificaInstallBanner();
+});
+
+// ─────────────────────────────────────────────────────────
+// UI: Lista principala
+// ─────────────────────────────────────────────────────────
+async function incarcaLista() {
+  inregistrari = await getAllRecords();
+  const lista = document.getElementById('lista');
+  const empty = document.getElementById('emptyState');
+
+  document.getElementById('totalCount').textContent = `Total: ${inregistrari.length} înregistrări`;
+
+  if (inregistrari.length === 0) {
+    empty.style.display = 'flex';
+    lista.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  lista.innerHTML = inregistrari.map(rec => `
+    <div class="card">
+      ${rec.poza ? `<img src="${rec.poza}">` : `<div class="no-photo">📷</div>`}
+      <div class="info">
+        <div class="denumire">${escapeHtml(rec.denumire)}</div>
+        <div class="index">${escapeHtml(rec.index)} mc</div>
+        <div class="data">${formatDate(rec.dataOra)}</div>
+      </div>
+      <button class="del-btn" onclick="stergeInregistrare('${rec.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function stergeInregistrare(id) {
+  if (!confirm('Ștergi această înregistrare?')) return;
+  await deleteRecord(id);
+  await incarcaLista();
+  showToast('Șters ✓');
+}
+
+// ─────────────────────────────────────────────────────────
+// UI: Sheet adăugare
+// ─────────────────────────────────────────────────────────
+function deschideAdaugare() {
+  pozaCurentaBase64 = null;
+  document.getElementById('denumireInput').value = '';
+  document.getElementById('indexInput').value = '';
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('photoPlaceholder').style.display = 'block';
+  document.getElementById('refotoBtn').style.display = 'none';
+  document.getElementById('saveBtn').disabled = true;
+  document.getElementById('overlay').classList.add('active');
+
+  // Deschide direct camera după o mică pauză (UX mai bun)
+  setTimeout(() => document.getElementById('cameraInput').click(), 300);
+}
+
+function inchideSheet() {
+  document.getElementById('overlay').classList.remove('active');
+}
+
+document.getElementById('cameraInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    // Comprimă imaginea înainte de salvare (canvas resize)
+    comprimaImagine(evt.target.result, (compressed) => {
+      pozaCurentaBase64 = compressed;
+      document.getElementById('photoPreview').src = compressed;
+      document.getElementById('photoPreview').style.display = 'block';
+      document.getElementById('photoPlaceholder').style.display = 'none';
+      document.getElementById('refotoBtn').style.display = 'block';
+      verificaSalvare();
+      // Focus pe câmpul index după poză
+      setTimeout(() => document.getElementById('indexInput').focus(), 200);
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+function comprimaImagine(base64, callback) {
+  const img = new Image();
+  img.onload = function() {
+    const maxW = 800;
+    const scale = Math.min(1, maxW / img.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    callback(canvas.toDataURL('image/jpeg', 0.75));
+  };
+  img.src = base64;
+}
+
+document.getElementById('indexInput').addEventListener('input', verificaSalvare);
+
+function verificaSalvare() {
+  const index = document.getElementById('indexInput').value.trim();
+  document.getElementById('saveBtn').disabled = index === '';
+}
+
+async function salveazaInregistrare() {
+  const denumire = document.getElementById('denumireInput').value.trim() || 'Apometru';
+  const index = document.getElementById('indexInput').value.trim();
+
+  if (!index) return;
+
+  const record = {
+    id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    denumire,
+    index,
+    poza: pozaCurentaBase64,
+    dataOra: Date.now()
+  };
+
+  await addRecord(record);
+  await incarcaLista();
+  inchideSheet();
+  showToast('Salvat ✓');
+}
+
+// ─────────────────────────────────────────────────────────
+// Export CSV
+// ─────────────────────────────────────────────────────────
+function exportaCSV() {
+  if (inregistrari.length === 0) {
+    showToast('Nicio înregistrare de exportat');
+    return;
+  }
+  let csv = 'Denumire,Index,Data/Ora\n';
+  inregistrari.forEach(r => {
+    csv += `"${r.denumire}","${r.index}","${formatDate(r.dataOra)}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0,16).replace(/[:T]/g,'');
+  a.href = url;
+  a.download = `apometre_${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV exportat ✓');
+}
+
+// ─────────────────────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────────────────────
+let toastTimeout;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ─────────────────────────────────────────────────────────
+// Banner "adaugă pe ecran principal" - doar dacă nu e deja instalată
+// ─────────────────────────────────────────────────────────
+function verificaInstallBanner() {
+  const isStandalone = window.navigator.standalone === true ||
+                        window.matchMedia('(display-mode: standalone)').matches;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const dismissed = localStorage.getItem('install_banner_dismissed');
+
+  if (isIOS && !isStandalone && !dismissed) {
+    document.getElementById('installBanner').classList.add('show');
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Service Worker (funcționare offline)
+// ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
