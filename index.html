@@ -10,6 +10,7 @@
 <title>Apometre</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root {
     --primary: #1F4E79;
@@ -190,6 +191,28 @@
     padding: 10px 16px; text-align: center;
   }
   #installBanner.show { display: block; }
+
+  /* OCR processing overlay */
+  .ocr-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; z-index: 150; color: white;
+  }
+  .ocr-overlay.active { display: flex; }
+  .spinner {
+    width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ocr-overlay p { margin-top: 16px; font-size: 15px; }
+  .ocr-overlay .sub { font-size: 12.5px; color: #ccc; margin-top: 4px; }
+
+  .index-badge {
+    display: inline-block; background: #E8F5E9; color: var(--success);
+    font-size: 11.5px; padding: 3px 8px; border-radius: 10px; margin-top: 6px;
+  }
+  .index-badge.manual { background: #FFF3E0; color: #E65100; }
 </style>
 </head>
 <body>
@@ -243,9 +266,16 @@
 
     <label class="field-label">Index apometru (mc)</label>
     <input type="text" inputmode="decimal" id="indexInput" placeholder="0.000">
+    <span class="index-badge" id="indexBadge" style="display:none"></span>
 
     <button class="btn-save" id="saveBtn" onclick="salveazaInregistrare()" disabled>✅ SALVEAZĂ</button>
   </div>
+</div>
+
+<div class="ocr-overlay" id="ocrOverlay">
+  <div class="spinner"></div>
+  <p>🔍 Citesc indexul din poză...</p>
+  <p class="sub">Durează câteva secunde</p>
 </div>
 
 <div id="toast"></div>
@@ -375,6 +405,7 @@ function deschideAdaugare() {
   document.getElementById('photoPlaceholder').style.display = 'block';
   document.getElementById('refotoBtn').style.display = 'none';
   document.getElementById('saveBtn').disabled = true;
+  document.getElementById('indexBadge').style.display = 'none';
   document.getElementById('overlay').classList.add('active');
 
   // Deschide direct camera după o mică pauză (UX mai bun)
@@ -392,19 +423,77 @@ document.getElementById('cameraInput').addEventListener('change', function(e) {
   const reader = new FileReader();
   reader.onload = function(evt) {
     // Comprimă imaginea înainte de salvare (canvas resize)
-    comprimaImagine(evt.target.result, (compressed) => {
+    comprimaImagine(evt.target.result, async (compressed) => {
       pozaCurentaBase64 = compressed;
       document.getElementById('photoPreview').src = compressed;
       document.getElementById('photoPreview').style.display = 'block';
       document.getElementById('photoPlaceholder').style.display = 'none';
       document.getElementById('refotoBtn').style.display = 'block';
+      document.getElementById('indexBadge').style.display = 'none';
+
+      // Rulează OCR automat pe poza comprimată
+      await ruleazaOCR(compressed);
+
       verificaSalvare();
-      // Focus pe câmpul index după poză
-      setTimeout(() => document.getElementById('indexInput').focus(), 200);
     });
   };
   reader.readAsDataURL(file);
 });
+
+// ─────────────────────────────────────────────────────────
+// OCR — citire automată index din poză (Tesseract.js)
+// ─────────────────────────────────────────────────────────
+async function ruleazaOCR(imageBase64) {
+  const overlay = document.getElementById('ocrOverlay');
+  overlay.classList.add('active');
+
+  try {
+    const result = await Tesseract.recognize(imageBase64, 'eng', {
+      // whitelist doar cifre + punct + virgulă, mult mai rapid și precis
+    });
+
+    const text = result.data.text || '';
+    const indexGasit = extrageIndexDinText(text);
+
+    const indexInput = document.getElementById('indexInput');
+    const badge = document.getElementById('indexBadge');
+
+    if (indexGasit) {
+      indexInput.value = indexGasit;
+      badge.textContent = '✓ Citit automat din poză — verifică';
+      badge.className = 'index-badge';
+      badge.style.display = 'inline-block';
+    } else {
+      badge.textContent = '⚠ Nu am putut citi automat — introdu manual';
+      badge.className = 'index-badge manual';
+      badge.style.display = 'inline-block';
+    }
+
+    setTimeout(() => document.getElementById('indexInput').focus(), 200);
+  } catch (err) {
+    console.error('Eroare OCR:', err);
+    const badge = document.getElementById('indexBadge');
+    badge.textContent = '⚠ OCR indisponibil — introdu manual';
+    badge.className = 'index-badge manual';
+    badge.style.display = 'inline-block';
+  } finally {
+    overlay.classList.remove('active');
+  }
+}
+
+function extrageIndexDinText(text) {
+  // Pattern 1: format tipic apometru cu punct/virgulă zecimală (ex: 00125.450)
+  const decimalMatch = text.match(/\d{1,6}[.,]\d{2,3}/);
+  if (decimalMatch) return decimalMatch[0].replace(',', '.');
+
+  // Pattern 2: număr întreg de 4-8 cifre
+  const intregMatch = text.match(/\d{4,8}/);
+  if (intregMatch) return intregMatch[0];
+
+  // Pattern 3: orice cifre găsite
+  const cifre = text.replace(/[^\d.,]/g, '');
+  return cifre.length >= 3 ? cifre.slice(0, 10) : '';
+}
 
 function comprimaImagine(base64, callback) {
   const img = new Image();
