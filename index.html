@@ -11,6 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root {
     --primary: #1F4E79;
@@ -213,6 +214,96 @@
     font-size: 11.5px; padding: 3px 8px; border-radius: 10px; margin-top: 6px;
   }
   .index-badge.manual { background: #FFF3E0; color: #E65100; }
+
+  /* Detalii / poză mare */
+  .detail-sheet {
+    background: white; width: 100%; border-radius: 18px 18px 0 0;
+    padding: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-height: 92vh; overflow-y: auto;
+  }
+  .detail-photo {
+    width: 100%; border-radius: 12px; background: #f0f0f0;
+    max-height: 50vh; object-fit: contain; display: block;
+  }
+  .detail-photo-wrap {
+    width: 100%; border-radius: 12px; background: #111;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .detail-no-photo {
+    width: 100%; height: 200px; border-radius: 12px; background: #f0f0f0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; color: #aaa; margin-bottom: 16px;
+  }
+  .detail-index-big {
+    font-size: 32px; font-weight: 700; color: var(--accent);
+    text-align: center; margin: 8px 0;
+  }
+  .detail-label { font-size: 12.5px; color: #888; text-align: center; }
+  .detail-denumire { font-size: 16px; font-weight: 600; text-align: center; color: #333; margin-top: 4px; }
+  .detail-data { font-size: 12px; color: #999; text-align: center; margin-top: 8px; }
+  .detail-actions {
+    display: flex; gap: 10px; margin-top: 20px;
+  }
+  .detail-actions button {
+    flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    border: none; cursor: pointer;
+  }
+  .btn-download { background: #E3F2FD; color: var(--accent); }
+  .btn-close-detail { background: #f0f0f0; color: #555; }
+
+  /* Scanner QR live */
+  .qr-scanner-overlay {
+    position: fixed; inset: 0; background: #000;
+    display: none; flex-direction: column; z-index: 300;
+  }
+  .qr-scanner-overlay.active { display: flex; }
+  .qr-video-wrap {
+    position: relative; flex: 1; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #qrVideo {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .qr-frame {
+    position: absolute; width: 240px; height: 240px;
+    border: 3px solid rgba(255,255,255,0.9);
+    border-radius: 16px;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
+  }
+  .qr-frame::before, .qr-frame::after {
+    content: ''; position: absolute; width: 30px; height: 30px;
+    border-color: #4CAF50; border-style: solid;
+  }
+  .qr-top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 16px; padding-top: calc(16px + env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(rgba(0,0,0,0.6), transparent);
+    z-index: 2;
+  }
+  .qr-close-btn {
+    background: rgba(255,255,255,0.2); border: none; color: white;
+    width: 40px; height: 40px; border-radius: 20px; font-size: 20px; cursor: pointer;
+  }
+  .qr-instructiune {
+    position: absolute; top: 90px; left: 0; right: 0; text-align: center;
+    color: white; font-size: 15px; font-weight: 500; padding: 0 30px; z-index: 2;
+  }
+  .qr-manual-link {
+    position: absolute; bottom: calc(30px + env(safe-area-inset-bottom));
+    left: 0; right: 0; text-align: center; z-index: 2;
+  }
+  .qr-manual-link button {
+    background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4);
+    padding: 10px 20px; border-radius: 20px; font-size: 13px; cursor: pointer;
+  }
+  .qr-found-badge {
+    position: absolute; top: 140px; left: 50%; transform: translateX(-50%);
+    background: #2E7D32; color: white; padding: 8px 18px; border-radius: 20px;
+    font-size: 15px; font-weight: 600; z-index: 3; display: none;
+  }
+  .qr-found-badge.show { display: block; }
 </style>
 </head>
 <body>
@@ -269,6 +360,50 @@
     <span class="index-badge" id="indexBadge" style="display:none"></span>
 
     <button class="btn-save" id="saveBtn" onclick="salveazaInregistrare()" disabled>✅ SALVEAZĂ</button>
+  </div>
+</div>
+
+<!-- Scanner QR live -->
+<div class="qr-scanner-overlay" id="qrScannerOverlay">
+  <div class="qr-video-wrap">
+    <video id="qrVideo" playsinline autoplay muted></video>
+    <canvas id="qrCanvas" style="display:none"></canvas>
+
+    <div class="qr-top-bar">
+      <button class="qr-close-btn" onclick="inchideScannerQR()">✕</button>
+      <span style="width:40px"></span>
+    </div>
+
+    <div class="qr-instructiune">📷 Îndreaptă camera spre codul QR de pe apometru</div>
+    <div class="qr-found-badge" id="qrFoundBadge">✅ Cod detectat!</div>
+    <div class="qr-frame"></div>
+
+    <div class="qr-manual-link">
+      <button onclick="scaneazaManual()">✏️ Introdu manual denumirea</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay detalii / poză mare -->
+<div class="overlay" id="detailOverlay">
+  <div class="detail-sheet">
+    <div class="sheet-header">
+      <span style="width:50px"></span>
+      <h2>Detalii citire</h2>
+      <button onclick="inchideDetalii()">Închide</button>
+    </div>
+
+    <div id="detailPhotoContainer"></div>
+
+    <div class="detail-index-big" id="detailIndex">—</div>
+    <div class="detail-label">index (mc)</div>
+    <div class="detail-denumire" id="detailDenumire">—</div>
+    <div class="detail-data" id="detailData">—</div>
+
+    <div class="detail-actions">
+      <button class="btn-download" id="detailDownloadBtn" onclick="descarcaPoza()">⬇️ Salvează poza</button>
+      <button class="btn-close-detail" onclick="inchideDetalii()">Închide</button>
+    </div>
   </div>
 </div>
 
@@ -363,14 +498,14 @@ async function incarcaLista() {
   empty.style.display = 'none';
 
   lista.innerHTML = inregistrari.map(rec => `
-    <div class="card">
+    <div class="card" onclick="deschideDetalii('${rec.id}')">
       ${rec.poza ? `<img src="${rec.poza}">` : `<div class="no-photo">📷</div>`}
       <div class="info">
         <div class="denumire">${escapeHtml(rec.denumire)}</div>
         <div class="index">${escapeHtml(rec.index)} mc</div>
         <div class="data">${formatDate(rec.dataOra)}</div>
       </div>
-      <button class="del-btn" onclick="stergeInregistrare('${rec.id}')">✕</button>
+      <button class="del-btn" onclick="event.stopPropagation(); stergeInregistrare('${rec.id}')">✕</button>
     </div>
   `).join('');
 }
@@ -395,6 +530,53 @@ async function stergeInregistrare(id) {
 }
 
 // ─────────────────────────────────────────────────────────
+// UI: Detalii / poză mare (verificare index vs poză)
+// ─────────────────────────────────────────────────────────
+let inregistrareCurentaDetaliu = null;
+
+function deschideDetalii(id) {
+  const rec = inregistrari.find(r => r.id === id);
+  if (!rec) return;
+  inregistrareCurentaDetaliu = rec;
+
+  const container = document.getElementById('detailPhotoContainer');
+  if (rec.poza) {
+    container.innerHTML = `
+      <div class="detail-photo-wrap"><img class="detail-photo" src="${rec.poza}"></div>
+      <div class="detail-label" style="margin-bottom:12px">🖐️ Apasă lung pe poză pentru a o salva în Poze</div>
+    `;
+    document.getElementById('detailDownloadBtn').style.display = 'block';
+  } else {
+    container.innerHTML = `<div class="detail-no-photo">📷 Fără poză salvată</div>`;
+    document.getElementById('detailDownloadBtn').style.display = 'none';
+  }
+
+  document.getElementById('detailIndex').textContent = rec.index;
+  document.getElementById('detailDenumire').textContent = rec.denumire;
+  document.getElementById('detailData').textContent = formatDate(rec.dataOra);
+
+  document.getElementById('detailOverlay').classList.add('active');
+}
+
+function inchideDetalii() {
+  document.getElementById('detailOverlay').classList.remove('active');
+  inregistrareCurentaDetaliu = null;
+}
+
+function descarcaPoza() {
+  if (!inregistrareCurentaDetaliu || !inregistrareCurentaDetaliu.poza) return;
+
+  const a = document.createElement('a');
+  a.href = inregistrareCurentaDetaliu.poza;
+  const denumireSafe = inregistrareCurentaDetaliu.denumire.replace(/[^a-z0-9]/gi, '_');
+  a.download = `apometru_${denumireSafe}_${inregistrareCurentaDetaliu.index}.jpg`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('Poză salvată ✓');
+}
+
+// ─────────────────────────────────────────────────────────
 // UI: Sheet adăugare
 // ─────────────────────────────────────────────────────────
 function deschideAdaugare() {
@@ -406,10 +588,96 @@ function deschideAdaugare() {
   document.getElementById('refotoBtn').style.display = 'none';
   document.getElementById('saveBtn').disabled = true;
   document.getElementById('indexBadge').style.display = 'none';
-  document.getElementById('overlay').classList.add('active');
 
+  // Pasul 1: deschide scannerul QR pentru identificarea apartamentului
+  deschideScannerQR();
+}
+
+function deschideFormularAdaugare(denumirePrecompletata) {
+  document.getElementById('denumireInput').value = denumirePrecompletata || '';
+  document.getElementById('overlay').classList.add('active');
   // Deschide direct camera după o mică pauză (UX mai bun)
   setTimeout(() => document.getElementById('cameraInput').click(), 300);
+}
+
+// ─────────────────────────────────────────────────────────
+// Scanner QR live (jsQR + getUserMedia)
+// ─────────────────────────────────────────────────────────
+let qrStream = null;
+let qrScanning = false;
+
+async function deschideScannerQR() {
+  const overlay = document.getElementById('qrScannerOverlay');
+  const video = document.getElementById('qrVideo');
+  document.getElementById('qrFoundBadge').classList.remove('show');
+  overlay.classList.add('active');
+
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+    video.srcObject = qrStream;
+    await video.play();
+    qrScanning = true;
+    requestAnimationFrame(scaneazaFrame);
+  } catch (err) {
+    console.error('Eroare cameră QR:', err);
+    showToast('Nu am acces la cameră — introdu manual');
+    inchideScannerQR();
+    deschideFormularAdaugare('');
+  }
+}
+
+function scaneazaFrame() {
+  if (!qrScanning) return;
+
+  const video = document.getElementById('qrVideo');
+  const canvas = document.getElementById('qrCanvas');
+
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    const cod = jsQR(imageData.data, imageData.width, imageData.height);
+
+    if (cod && cod.data) {
+      onQRDetectat(cod.data);
+      return;
+    }
+  }
+
+  requestAnimationFrame(scaneazaFrame);
+}
+
+function onQRDetectat(text) {
+  qrScanning = false;
+
+  if (navigator.vibrate) navigator.vibrate(100);
+
+  document.getElementById('qrFoundBadge').textContent = `✅ ${text}`;
+  document.getElementById('qrFoundBadge').classList.add('show');
+
+  setTimeout(() => {
+    inchideScannerQR();
+    deschideFormularAdaugare(text);
+  }, 600);
+}
+
+function inchideScannerQR() {
+  qrScanning = false;
+  document.getElementById('qrScannerOverlay').classList.remove('active');
+  if (qrStream) {
+    qrStream.getTracks().forEach(track => track.stop());
+    qrStream = null;
+  }
+}
+
+function scaneazaManual() {
+  inchideScannerQR();
+  deschideFormularAdaugare('');
 }
 
 function inchideSheet() {
